@@ -1,0 +1,10 @@
+{
+  "appId": "com.kaushal.stocknews",
+  "appName": "stock-news-app",
+  "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

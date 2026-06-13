@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "861056175882",
+    "project_id": "arenaflow-798f6",
+    "storage_bucket": "arenaflow-798f6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861056175882:android:d98388d79b67c6cb9ff4f3",
+        "android_client_info": {
+          "package_name": "com.kaushal.stocknews"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxlwIUSqQBgN5-uR_EnZSPctJjAv8aKAQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
