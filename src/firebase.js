@@ -3,13 +3,13 @@ import { getFirestore, collection, query, orderBy, limit, onSnapshot } from 'fir
 
 // Default Firebase configuration matching your active project
 const firebaseConfig = {
-  apiKey: "AIzaSyCD3sQzPC0TKoNhLBB_d8RLK4RQIsi4-_c",
-  authDomain: "arenaflow-798f6.firebaseapp.com",
-  projectId: "arenaflow-798f6",
-  storageBucket: "arenaflow-798f6.firebasestorage.app",
-  messagingSenderId: "861056175882",
-  appId: "1:861056175882:web:3e0ec44d795eed869ff4f3",
-  measurementId: "G-RYYYVJHJRT"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
