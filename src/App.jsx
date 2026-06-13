@@ -69,7 +69,6 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [trackedStocks, setTrackedStocks] = useState([]);
   const [selectedChannel, setSelectedChannel] = useState("");
-  const [newTickerInput, setNewTickerInput] = useState("");
   const [prices, setPrices] = useState(INITIAL_PRICES);
   const messagesEndRef = useRef(null);
 
@@ -252,11 +251,10 @@ export default function App() {
     return stockNews[0];
   };
 
-  // Add a new stock ticker to Firestore
-  const handleAddStock = async (e) => {
-    e.preventDefault();
-    if (!newTickerInput || !newTickerInput.trim()) return;
-    let ticker = newTickerInput.toUpperCase().trim();
+  // Add a new stock ticker directly from the search input
+  const handleAddStockFromSearch = async () => {
+    if (!search || !search.trim()) return;
+    let ticker = search.toUpperCase().trim();
     
     // Automatically append .NS for Indian markets if not provided
     if (!ticker.includes('.')) {
@@ -274,7 +272,7 @@ export default function App() {
         ticker: ticker,
         timestamp: serverTimestamp()
       });
-      setNewTickerInput("");
+      setSearch(""); // clear search to reset list
       setSelectedChannel(ticker);
       alert(`Successfully added ${ticker.replace('.NS', '')} to your channels!`);
     } catch (err) {
@@ -416,52 +414,51 @@ export default function App() {
         {/* Left Sidebar (Channels List) */}
         <aside className="chat-sidebar">
           <div className="search-section">
-            <div className="search-box">
-              <Search className="search-icon" size={14} />
-              <input 
-                type="text" 
-                placeholder="Search stock channels..." 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                id="search-input"
-              />
+            <div className="search-box" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search className="search-icon" size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#a1a1aa' }} />
+                <input 
+                  type="text" 
+                  placeholder="Search or add stock..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  id="search-input"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px 8px 32px',
+                    borderRadius: '6px',
+                    border: '1px solid #3f3f46',
+                    backgroundColor: '#18181b',
+                    color: '#f4f4f5',
+                    fontSize: '12px'
+                  }}
+                />
+              </div>
+              
+              {/* If they type something that isn't already in tracked stocks, show a Quick Add (+) button */}
+              {search.trim() && !trackedStocks.some(s => s.ticker.toLowerCase() === (search.trim().includes('.') ? search.trim().toLowerCase() : `${search.trim().toLowerCase()}.ns`)) && (
+                <button
+                  onClick={handleAddStockFromSearch}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: '#3f3f46',
+                    color: '#f4f4f5',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  title="Add as new stock"
+                >
+                  <Plus size={14} />
+                  <span>Add</span>
+                </button>
+              )}
             </div>
-            
-            {/* New Add Stock Form */}
-            <form onSubmit={handleAddStock} className="add-stock-form" style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="Add stock (e.g. INFY)..."
-                value={newTickerInput}
-                onChange={(e) => setNewTickerInput(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #3f3f46',
-                  backgroundColor: '#18181b',
-                  color: '#f4f4f5',
-                  fontSize: '12px'
-                }}
-              />
-              <button
-                type="submit"
-                style={{
-                  padding: '6px',
-                  borderRadius: '6px',
-                  backgroundColor: '#3f3f46',
-                  color: '#f4f4f5',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Add Stock Channel"
-              >
-                <Plus size={14} />
-              </button>
-            </form>
           </div>
 
           {/* Autocomplete Suggestions */}
