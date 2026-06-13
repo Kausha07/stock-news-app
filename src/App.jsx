@@ -14,6 +14,14 @@ const ALL_STOCKS = [
   "NTPC.NS", "RTNINDIA.NS", "SCI.NS"
 ];
 
+const POPULAR_SUGGESTIONS = [
+  "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "BHARTIENT.NS", "INFY.NS", 
+  "ICICIBANK.NS", "SBI.NS", "TATASTEEL.NS", "TATAMOTORS.NS", "ITC.NS", 
+  "HINDUNILVR.NS", "LT.NS", "AXISBANK.NS", "WIPRO.NS", "ASIANPAINT.NS",
+  "MARUTI.NS", "SUNPHARMA.NS", "ONGC.NS", "COALINDIA.NS", "ADANIENT.NS",
+  "HEROMOTOCO.NS", "CANBK.NS", "BANKBARODA.NS", "JPPOWER.NS", "NTPC.NS"
+];
+
 // Helper to format Date banners (Today, Yesterday, or long Date)
 const formatDateHeader = (date) => {
   const today = new Date();
@@ -268,8 +276,26 @@ export default function App() {
       });
       setNewTickerInput("");
       setSelectedChannel(ticker);
+      alert(`Successfully added ${ticker.replace('.NS', '')} to your channels!`);
     } catch (err) {
       console.error("Error adding stock:", err);
+      alert("Failed to add stock: " + err.message);
+    }
+  };
+
+  // Add stock from suggestion click
+  const handleAddStockFromSuggestion = async (ticker) => {
+    try {
+      await addDoc(collection(db, "tracked_stocks"), {
+        ticker: ticker,
+        timestamp: serverTimestamp()
+      });
+      setSearch(""); // clear search input
+      setSelectedChannel(ticker);
+      alert(`Successfully added ${ticker.replace('.NS', '')} to your channels!`);
+    } catch (err) {
+      console.error("Error adding suggestion:", err);
+      alert("Failed to add stock: " + err.message);
     }
   };
 
@@ -298,8 +324,15 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error deleting stock:", err);
+      alert("Failed to delete stock: " + err.message);
     }
   };
+
+  // Filter popular suggestions that match the search query and are not already tracked
+  const matchedSuggestions = search.trim() ? POPULAR_SUGGESTIONS.filter(ticker => 
+    ticker.toLowerCase().includes(search.toLowerCase()) &&
+    !trackedStocks.some(s => s.ticker === ticker)
+  ).slice(0, 5) : [];
 
   // Filter stocks by search query in the sidebar
   const filteredStocksList = trackedStocks.filter(stock => 
@@ -430,6 +463,36 @@ export default function App() {
               </button>
             </form>
           </div>
+
+          {/* Autocomplete Suggestions */}
+          {matchedSuggestions.length > 0 && (
+            <div className="suggestions-section" style={{ padding: '10px 15px', borderBottom: '1px solid #27272a', backgroundColor: '#18181b', borderRadius: '8px', margin: '0 15px 10px' }}>
+              <h4 style={{ color: '#a1a1aa', fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em', fontWeight: 'bold' }}>Suggested to Add</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {matchedSuggestions.map(ticker => (
+                  <div 
+                    key={ticker}
+                    onClick={() => handleAddStockFromSuggestion(ticker)}
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '8px 10px', 
+                      backgroundColor: '#27272a', 
+                      borderRadius: '6px', 
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: '#f4f4f5'
+                    }}
+                    className="suggestion-item"
+                  >
+                    <span>{ticker.replace('.NS', '')}</span>
+                    <Plus size={12} style={{ color: '#a1a1aa' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="chat-channels-list">
             {filteredStocksList.map((stock, idx) => {
