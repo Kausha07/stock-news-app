@@ -37,3 +37,25 @@ export const subscribeToStockNews = (callback) => {
   }
   return () => {};
 };
+
+// Real-time subscription to tracked stocks list
+export const subscribeToTrackedStocks = (callback) => {
+  try {
+    const q = query(
+      collection(db, "tracked_stocks"),
+      orderBy("timestamp", "asc")
+    );
+    return onSnapshot(q, (snapshot) => {
+      const list = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      callback(list);
+    }, (err) => {
+      console.error("Firestore tracked_stocks subscription error:", err);
+    });
+  } catch (e) {
+    console.error("Failed to subscribe to tracked_stocks in Firestore.", e);
+  }
+  return () => {};
+};

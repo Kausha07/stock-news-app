@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, ExternalLink, MessageSquare, TrendingUp, ChevronRight } from 'lucide-react';
+import { Bell, Search, ExternalLink, MessageSquare, TrendingUp, ChevronRight, Trash2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { subscribeToStockNews, db } from './firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { subscribeToStockNews, db, subscribeToTrackedStocks } from './firebase';
+import { doc, setDoc, serverTimestamp, deleteDoc, addDoc, collection } from 'firebase/firestore';
 import { PushNotifications } from '@capacitor/push-notifications';
 import './App.css';
 
@@ -59,7 +59,9 @@ const INITIAL_PRICES = [
 export default function App() {
   const [news, setNews] = useState([]);
   const [search, setSearch] = useState("");
-  const [selectedChannel, setSelectedChannel] = useState(ALL_STOCKS[0]); // Default to first stock
+  const [trackedStocks, setTrackedStocks] = useState([]);
+  const [selectedChannel, setSelectedChannel] = useState("");
+  const [newTickerInput, setNewTickerInput] = useState("");
   const [prices, setPrices] = useState(INITIAL_PRICES);
   const messagesEndRef = useRef(null);
 
@@ -118,6 +120,35 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Subscribe to real-time tracked stocks list
+  useEffect(() => {
+    const unsubscribe = subscribeToTrackedStocks(async (list) => {
+      if (list.length === 0) {
+        console.log("Firestore tracked_stocks is empty. Seeding defaults...");
+        try {
+          for (const ticker of ALL_STOCKS) {
+            await addDoc(collection(db, "tracked_stocks"), {
+              ticker: ticker,
+              timestamp: serverTimestamp()
+            });
+          }
+        } catch (e) {
+          console.error("Seeding error:", e);
+        }
+      } else {
+        setTrackedStocks(list);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Set default selected channel once stocks are loaded
+  useEffect(() => {
+    if (trackedStocks.length > 0 && !selectedChannel) {
+      setSelectedChannel(trackedStocks[0].ticker);
+    }
+  }, [trackedStocks, selectedChannel]);
 
   // Register push notifications when app mounts (runs on Android device/emulator)
   useEffect(() => {
@@ -213,9 +244,66 @@ export default function App() {
     return stockNews[0];
   };
 
+  // Add a new stock ticker to Firestore
+  const handleAddStock = async (e) => {
+    e.preventDefault();
+    if (!newTickerInput || !newTickerInput.trim()) return;
+    let ticker = newTickerInput.toUpperCase().trim();
+    
+    // Automatically append .NS for Indian markets if not provided
+    if (!ticker.includes('.')) {
+      ticker = `${ticker}.NS`;
+    }
+
+    // Check for duplicates
+    if (trackedStocks.some(s => s.ticker === ticker)) {
+      alert("Stock is already tracked!");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "tracked_stocks"), {
+        ticker: ticker,
+        timestamp: serverTimestamp()
+      });
+      setNewTickerInput("");
+      setSelectedChannel(ticker);
+    } catch (err) {
+      console.error("Error adding stock:", err);
+    }
+  };
+
+  // Delete a stock ticker from Firestore
+  const handleDeleteStock = async (e, stock) => {
+    e.stopPropagation(); // Prevent selecting the channel when clicking delete
+    
+    if (trackedStocks.length <= 1) {
+      alert("You must keep at least one tracked stock!");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to stop tracking ${stock.ticker}?`)) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "tracked_stocks", stock.id));
+      
+      // If deleting the currently selected stock, select another one
+      if (selectedChannel === stock.ticker) {
+        const remaining = trackedStocks.filter(s => s.id !== stock.id);
+        if (remaining.length > 0) {
+          setSelectedChannel(remaining[0].ticker);
+        }
+      }
+    } catch (err) {
+      console.error("Error deleting stock:", err);
+    }
+  };
+
   // Filter stocks by search query in the sidebar
-  const filteredStocksList = ALL_STOCKS.filter(ticker => 
-    ticker.toLowerCase().includes(search.toLowerCase())
+  const filteredStocksList = trackedStocks.filter(stock => 
+    stock.ticker.toLowerCase().includes(search.toLowerCase())
   );
 
   // Get and sort news for the currently active stock channel
@@ -305,10 +393,47 @@ export default function App() {
                 id="search-input"
               />
             </div>
+            
+            {/* New Add Stock Form */}
+            <form onSubmit={handleAddStock} className="add-stock-form" style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Add stock (e.g. INFY)..."
+                value={newTickerInput}
+                onChange={(e) => setNewTickerInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #3f3f46',
+                  backgroundColor: '#18181b',
+                  color: '#f4f4f5',
+                  fontSize: '12px'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  padding: '6px',
+                  borderRadius: '6px',
+                  backgroundColor: '#3f3f46',
+                  color: '#f4f4f5',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Add Stock Channel"
+              >
+                <Plus size={14} />
+              </button>
+            </form>
           </div>
 
           <div className="chat-channels-list">
-            {filteredStocksList.map((ticker, idx) => {
+            {filteredStocksList.map((stock, idx) => {
+              const ticker = stock.ticker;
               const isActive = selectedChannel === ticker;
               const latestMsg = getLatestNewsForStock(ticker);
               const initials = ticker.replace('.NS', '').substring(0, 2);
@@ -324,7 +449,7 @@ export default function App() {
               
               return (
                 <div 
-                  key={ticker} 
+                  key={stock.id} 
                   onClick={() => setSelectedChannel(ticker)}
                   className={`chat-list-item ${isActive ? 'active' : ''}`}
                 >
@@ -345,9 +470,28 @@ export default function App() {
                       <span className="chat-preview" style={{ flex: 1, paddingRight: '8px' }}>
                         {latestMsg ? latestMsg.title : "No recent messages"}
                       </span>
-                      {unreadCount > 0 && !isActive && (
-                        <span className="unread-badge">{unreadCount}</span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {unreadCount > 0 && !isActive && (
+                          <span className="unread-badge">{unreadCount}</span>
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteStock(e, stock)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#a1a1aa'
+                          }}
+                          className="delete-stock-btn"
+                          title="Stop Tracking Stock"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -358,79 +502,90 @@ export default function App() {
 
         {/* Right Content Area (Chat Window) */}
         <section className="chat-window">
-          
-          {/* Header of active chat */}
-          <div className="chat-window-header">
-            <div className={`chat-avatar avatar-${ALL_STOCKS.indexOf(selectedChannel) % 5}`} style={{ width: '38px', height: '38px', fontSize: '11px' }}>
-              {selectedChannel.replace('.NS', '').substring(0, 2)}
-            </div>
-            <div className="chat-header-details">
-              <h3>{selectedChannel.replace('.NS', '')} Channel Feed</h3>
-              <p>• Online updates</p>
-            </div>
-          </div>
-
-          {/* Chat Messages */}
-          <div className="chat-messages-container">
-            {activeChannelNews.length === 0 ? (
-              <div className="chat-welcome-container">
-                <div className="welcome-badge">
-                  <MessageSquare size={28} />
-                </div>
-                <h3>No messages in this chat</h3>
-                <p>Google News RSS feed alerts for {selectedChannel.replace('.NS', '')} will display here when they are published.</p>
+          {!selectedChannel ? (
+            <div className="chat-welcome-container">
+              <div className="welcome-badge">
+                <MessageSquare size={28} />
               </div>
-            ) : (
-              // Loop through grouped dates
-              Object.keys(groupedNews).map(dateKey => (
-                <React.Fragment key={dateKey}>
-                  
-                  {/* Center Date Header */}
-                  <div className="chat-date-banner">
-                    <div className="date-badge">{dateKey}</div>
-                  </div>
-                  
-                  {/* Render messages for that date */}
-                  {groupedNews[dateKey].map((item, idx) => (
-                    <div key={item.id || idx} className="chat-message-row">
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="chat-bubble"
-                      >
-                        {item.summary ? (
-                          <>
-                            <h4 className="chat-bubble-title">{item.title}</h4>
-                            <p className="chat-bubble-summary">{item.summary}</p>
-                          </>
-                        ) : (
-                          <span className="chat-bubble-text">{item.title}</span>
-                        )}
-                        
-                        <div className="chat-bubble-footer">
-                          {item.link && (
-                            <a 
-                              href={item.link} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="chat-link"
-                            >
-                              <span>Read Full Article</span>
-                              <ExternalLink size={10} />
-                            </a>
-                          )}
-                          <span className="bubble-time">{formatMessageTime(item)}</span>
-                        </div>
-                      </motion.div>
-                    </div>
-                  ))}
+              <h3>No Stock Selected</h3>
+              <p>Select a stock channel from the sidebar or add a new one to view the feed.</p>
+            </div>
+          ) : (
+            <>
+              {/* Header of active chat */}
+              <div className="chat-window-header">
+                <div className={`chat-avatar avatar-${trackedStocks.findIndex(s => s.ticker === selectedChannel) % 5}`} style={{ width: '38px', height: '38px', fontSize: '11px' }}>
+                  {selectedChannel.replace('.NS', '').substring(0, 2)}
+                </div>
+                <div className="chat-header-details">
+                  <h3>{selectedChannel.replace('.NS', '')} Channel Feed</h3>
+                  <p>• Online updates</p>
+                </div>
+              </div>
 
-                </React.Fragment>
-              ))
-            )}
-            {/* Invisible div to target scroll */}
-            <div ref={messagesEndRef} />
-          </div>
+              {/* Chat Messages */}
+              <div className="chat-messages-container">
+                {activeChannelNews.length === 0 ? (
+                  <div className="chat-welcome-container">
+                    <div className="welcome-badge">
+                      <MessageSquare size={28} />
+                    </div>
+                    <h3>No messages in this chat</h3>
+                    <p>Google News RSS feed alerts for {selectedChannel.replace('.NS', '')} will display here when they are published.</p>
+                  </div>
+                ) : (
+                  // Loop through grouped dates
+                  Object.keys(groupedNews).map(dateKey => (
+                    <React.Fragment key={dateKey}>
+                      
+                      {/* Center Date Header */}
+                      <div className="chat-date-banner">
+                        <div className="date-badge">{dateKey}</div>
+                      </div>
+                      
+                      {/* Render messages for that date */}
+                      {groupedNews[dateKey].map((item, idx) => (
+                        <div key={item.id || idx} className="chat-message-row">
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="chat-bubble"
+                          >
+                            {item.summary ? (
+                              <>
+                                <h4 className="chat-bubble-title">{item.title}</h4>
+                                <p className="chat-bubble-summary">{item.summary}</p>
+                              </>
+                            ) : (
+                              <span className="chat-bubble-text">{item.title}</span>
+                            )}
+                            
+                            <div className="chat-bubble-footer">
+                              {item.link && (
+                                <a 
+                                  href={item.link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="chat-link"
+                                >
+                                  <span>Read Full Article</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              )}
+                              <span className="bubble-time">{formatMessageTime(item)}</span>
+                            </div>
+                          </motion.div>
+                        </div>
+                      ))}
+
+                    </React.Fragment>
+                  ))
+                )}
+                {/* Invisible div to target scroll */}
+                <div ref={messagesEndRef} />
+              </div>
+            </>
+          )}
         </section>
 
       </main>
